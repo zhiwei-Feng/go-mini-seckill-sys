@@ -1,3 +1,6 @@
+# jetbrain style files
+.idea
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
