@@ -2,45 +2,44 @@ package service
 
 import (
 	"errors"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"log"
 	"mini-seckill/dao"
+	"mini-seckill/db"
 	"mini-seckill/domain"
 	"time"
 )
 
 func CreateWrongOrder(sid int) int {
-	stock, err := checkStock(sid)
+	id := -1
+	err := db.DbConn.Transaction(func(tx *gorm.DB) error {
+		// add lock
+		stock, err := dao.SelectStockByPk(tx.Clauses(clause.Locking{Strength: "UPDATE"}), sid)
+		if err != nil {
+			return err
+		}
+		if stock.Sale == stock.Count {
+			log.Println("StockOuts")
+			return errors.New("StockOuts")
+		}
+
+		stock.Sale += 1
+		dao.UpdateStockByPk(tx, stock)
+		// create order
+
+		order := domain.StockOrder{}
+		order.Sid = int(stock.ID)
+		order.Name = stock.Name
+		order.CreateTime = time.Now()
+		id, err = dao.InsertOrderSelective(tx, order)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
-		log.Println(err)
 		return -1
 	}
-	saleStock(stock)
-	id := createOrder(stock)
-	return id
-}
-
-func checkStock(sid int) (domain.Stock, error) {
-	stock := dao.SelectStockByPk(sid)
-	if stock.Name == "" {
-		return stock, errors.New("stock don't exist")
-	}
-	if stock.Sale == stock.Count {
-		return stock, errors.New("stockouts")
-	}
-	return stock, nil
-}
-
-func saleStock(stock domain.Stock) int {
-	stock.Sale = stock.Sale - 1
-	return UpdateStockById(stock)
-}
-
-func createOrder(stock domain.Stock) int {
-	order := domain.StockOrder{}
-	order.Sid = int(stock.ID)
-	order.Name = stock.Name
-	order.CreateTime = time.Now()
-	// invoke dao to create
-	id := dao.InsertOrderSelective(order)
 	return id
 }

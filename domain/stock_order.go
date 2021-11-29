@@ -5,7 +5,7 @@ import (
 )
 
 type StockOrder struct {
-	ID         uint
+	ID         uint `gorm:"primary_key;"`
 	Sid        int
 	Name       string
 	CreateTime time.Time

@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	// open database connection
 	dsn := "root:root@tcp(127.0.0.1:3306)/seckill?charset=utf8mb4&parseTime=True&loc=Local"
 	dbcon, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -19,13 +20,14 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	sqlDb.SetMaxIdleConns(10)
-	sqlDb.SetMaxOpenConns(100)
-	sqlDb.SetConnMaxIdleTime(time.Minute)
+	sqlDb.SetMaxIdleConns(100)
+	sqlDb.SetMaxOpenConns(1000)
+	sqlDb.SetConnMaxIdleTime(time.Minute * 30)
 	db.DbConn = dbcon
 
+	// launch gin and config related handler
 	r := gin.Default()
 	r.GET("/createWrongOrder/:sid", controller.CreateWrongOrder)
 
-	r.Run(":8888")
+	_ = r.Run(":8888")
 }

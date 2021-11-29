@@ -1,7 +1,7 @@
 package domain
 
 type Stock struct {
-	ID      uint
+	ID      uint `gorm:"primary_key;"`
 	Name    string
 	Count   int
 	Sale    int
