@@ -1,15 +1,9 @@
 package service
 
-import "mini-seckill/domain"
-
-type StockService interface {
-	// GetStockById
-	// @param id stock ID
-	// @return domain.Stock
-	GetStockById(id int) domain.Stock
-
-	// UpdateStockById
-	// @param stock old domain.Stock info(include ID)
-	// @return stock ID
-	UpdateStockById(stock domain.Stock) int
-}
+//func UpdateStockById(stock domain.Stock) int {
+//	return dao.UpdateStockByPk(stock)
+//}
+//
+//func GetStockById(id int) domain.Stock {
+//	return dao.SelectStockByPk(id)
+//}

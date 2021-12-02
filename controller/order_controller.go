@@ -13,8 +13,25 @@ func CreateWrongOrder(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
 		return
 	}
-	//log.Println("buying..., sid:", sid)
 	id := service.CreateWrongOrder(sid)
-	//log.Println("create order, id:", id)
-	c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
+	if id == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "id": id})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
+	}
+}
+
+func CreateOptimisticOrder(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+		return
+	}
+
+	remain := service.CreateOrderWithOptimisticLock(sid)
+	if remain == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "remain": remain})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"message": "ok", "remain": remain})
+	}
 }

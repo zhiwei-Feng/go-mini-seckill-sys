@@ -28,6 +28,7 @@ func main() {
 	// launch gin and config related handler
 	r := gin.Default()
 	r.GET("/createWrongOrder/:sid", controller.CreateWrongOrder)
+	r.GET("/createOptimisticOrder/:sid", controller.CreateOptimisticOrder)
 
 	_ = r.Run(":8888")
 }
