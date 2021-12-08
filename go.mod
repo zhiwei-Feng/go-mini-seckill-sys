@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/gin-gonic/gin v1.7.7
+	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	gorm.io/driver/mysql v1.2.0
 	gorm.io/gorm v1.22.3
 )
