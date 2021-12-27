@@ -9,6 +9,7 @@ type StockOrder struct {
 	Sid        int
 	Name       string
 	CreateTime time.Time
+	UserId     int
 }
 
 func (receiver StockOrder) TableName() string {

@@ -29,6 +29,7 @@ func main() {
 	r := gin.Default()
 	r.GET("/createWrongOrder/:sid", controller.CreateWrongOrder)
 	r.GET("/createOptimisticOrder/:sid", controller.CreateOptimisticOrder)
+	r.GET("/createOrderWithVerifiedUrl/:sid/:userId/:verifyHash", controller.CreateOrderWithVerifiedUrl)
 	r.GET("/getVerityHash/:sid/:userId", controller.GetVerifyHash)
 
 	_ = r.Run(":8888")

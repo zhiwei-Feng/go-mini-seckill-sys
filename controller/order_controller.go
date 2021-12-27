@@ -51,6 +51,27 @@ func CreateOptimisticOrder(c *gin.Context) {
 	}
 }
 
+// CreateOrderWithVerifiedUrl
+// 带hash验证的订单创建
+func CreateOrderWithVerifiedUrl(c *gin.Context) {
+	sid, err1 := strconv.Atoi(c.Param("sid"))
+	userId, err2 := strconv.Atoi(c.Param("userId"))
+	verifyHash := c.Param("verifyHash")
+	if err1 != nil || err2 != nil || verifyHash == "" {
+		log.Println("请求参数错误")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "请求参数错误"})
+		return
+	}
+
+	remain, err := service.CreateOrderWithVerifiedUrl(sid, userId, verifyHash)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "ok", "remain": remain})
+}
+
 // GetVerifyHash
 // 为抢购接口加盐
 func GetVerifyHash(c *gin.Context) {
