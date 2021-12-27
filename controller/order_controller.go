@@ -8,6 +8,7 @@ import (
 	"mini-seckill/util"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -48,4 +49,31 @@ func CreateOptimisticOrder(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusOK, gin.H{"message": "ok", "remain": remain})
 	}
+}
+
+// GetVerifyHash
+// 为抢购接口加盐
+func GetVerifyHash(c *gin.Context) {
+	sid, err1 := strconv.Atoi(c.Param("sid"))
+	userId, err2 := strconv.Atoi(c.Param("userId"))
+	if err1 != nil || err2 != nil {
+		var messageBuilder strings.Builder
+		if err1 != nil {
+			messageBuilder.WriteString(err1.Error())
+		}
+		if err2 != nil {
+			messageBuilder.WriteString(", " + err2.Error())
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"message": messageBuilder.String()})
+		return
+	}
+
+	hashCode, err := service.GetVerifyHashForSeckillURL(sid, userId)
+	if err != nil {
+		log.Println("获取验证hash失败，原因：", err.Error())
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"message": "success", "code": hashCode})
+	}
+
 }
