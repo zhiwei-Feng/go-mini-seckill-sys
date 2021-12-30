@@ -30,6 +30,7 @@ func main() {
 	r.GET("/createWrongOrder/:sid", controller.CreateWrongOrder)
 	r.GET("/createOptimisticOrder/:sid", controller.CreateOptimisticOrder)
 	r.GET("/createOrderWithVerifiedUrl/:sid/:userId/:verifyHash", controller.CreateOrderWithVerifiedUrl)
+	r.GET("/createOrderWithVerifiedUrlAndLimit/:sid/:userId/:verifyHash", controller.CreateOrderWithVerifiedUrlAndLimit)
 	r.GET("/getVerityHash/:sid/:userId", controller.GetVerifyHash)
 
 	_ = r.Run(":8888")

@@ -72,6 +72,37 @@ func CreateOrderWithVerifiedUrl(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "ok", "remain": remain})
 }
 
+// CreateOrderWithVerifiedUrlAndLimit
+// 带hash验证和单用户限制的订单创建
+func CreateOrderWithVerifiedUrlAndLimit(c *gin.Context) {
+	sid, err1 := strconv.Atoi(c.Param("sid"))
+	userId, err2 := strconv.Atoi(c.Param("userId"))
+	verifyHash := c.Param("verifyHash")
+	if err1 != nil || err2 != nil || verifyHash == "" {
+		log.Println("请求参数错误")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "请求参数错误"})
+		return
+	}
+
+	count := service.UserCountSelfIncrement(userId)
+	if count == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "server error."})
+		return
+	}
+	isBanned := service.GetUserIsBanned(userId)
+	if isBanned {
+		c.JSON(http.StatusOK, gin.H{"message": "超过限制下单数，请一个小时后再试"})
+		return
+	}
+
+	remain, err := service.CreateOrderWithVerifiedUrl(sid, userId, verifyHash)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "ok", "remain": remain})
+}
+
 // GetVerifyHash
 // 为抢购接口加盐
 func GetVerifyHash(c *gin.Context) {

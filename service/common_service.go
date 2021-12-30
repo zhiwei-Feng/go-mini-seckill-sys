@@ -46,6 +46,7 @@ func GetVerifyHashForSeckillURL(sid, userId int) (string, error) {
 }
 
 const (
-	HASH_KEY = "seckill_hash"
-	//LIMIT_KEY = "seckill_limit"
+	HASH_KEY    = "seckill_hash"
+	LIMIT_KEY   = "seckill_limit"
+	ALLOW_COUNT = 10
 )
