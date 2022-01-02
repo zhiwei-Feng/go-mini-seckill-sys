@@ -32,6 +32,8 @@ func main() {
 	r.GET("/createOrderWithVerifiedUrl/:sid/:userId/:verifyHash", controller.CreateOrderWithVerifiedUrl)
 	r.GET("/createOrderWithVerifiedUrlAndLimit/:sid/:userId/:verifyHash", controller.CreateOrderWithVerifiedUrlAndLimit)
 	r.GET("/getVerityHash/:sid/:userId", controller.GetVerifyHash)
+	r.GET("/getStockByDB/:sid", controller.GetStockByDB)
+	r.GET("/getStockByCache/:sid", controller.GetStockByCache)
 
 	_ = r.Run(":8888")
 }

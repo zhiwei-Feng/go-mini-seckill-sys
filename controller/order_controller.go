@@ -129,3 +129,35 @@ func GetVerifyHash(c *gin.Context) {
 	}
 
 }
+
+func GetStockByDB(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	count := service.GetStockCountByDB(sid)
+	if count == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "数据库找不到该库存"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"count": count, "message": "OK"})
+}
+
+func GetStockByCache(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	count := service.GetStockCountByCache(sid)
+	if count == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "缓存未有该库存热点数据"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"count": count, "message": "OK"})
+}
