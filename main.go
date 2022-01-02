@@ -27,7 +27,7 @@ func main() {
 
 	// launch gin and config related handler
 	r := gin.Default()
-	r.GET("/createWrongOrder/:sid", controller.CreateWrongOrder)
+	r.GET("/createPessimisticOrder/:sid", controller.CreatePessimisticOrder)
 	r.GET("/createOptimisticOrder/:sid", controller.CreateOptimisticOrder)
 	r.GET("/createOrderWithVerifiedUrl/:sid/:userId/:verifyHash", controller.CreateOrderWithVerifiedUrl)
 	r.GET("/createOrderWithVerifiedUrlAndLimit/:sid/:userId/:verifyHash", controller.CreateOrderWithVerifiedUrlAndLimit)

@@ -13,10 +13,10 @@ import (
 	"time"
 )
 
-// CreateWrongOrder
+// CreateOrderWithPessimisticLock
 // @param sid stock ID
 // @return order ID
-func CreateWrongOrder(sid int) int {
+func CreateOrderWithPessimisticLock(sid int) int {
 	id := -1
 	err := db.DbConn.Transaction(func(tx *gorm.DB) error {
 		// add lock

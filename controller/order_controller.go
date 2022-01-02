@@ -12,13 +12,13 @@ import (
 	"time"
 )
 
-func CreateWrongOrder(c *gin.Context) {
+func CreatePessimisticOrder(c *gin.Context) {
 	sid, err := strconv.Atoi(c.Param("sid"))
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
 		return
 	}
-	id := service.CreateWrongOrder(sid)
+	id := service.CreateOrderWithPessimisticLock(sid)
 	if id == -1 {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "id": id})
 	} else {
