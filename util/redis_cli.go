@@ -27,3 +27,11 @@ func SetRedisStringVal(key string, val string) error {
 	}
 	return nil
 }
+
+func DelRedisKey(key string) error {
+	err := rdb.Del(context.Background(), key).Err()
+	if err != nil {
+		return err
+	}
+	return nil
+}

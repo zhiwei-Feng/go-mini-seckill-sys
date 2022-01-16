@@ -12,6 +12,49 @@ import (
 	"time"
 )
 
+// CreateOrderWithCacheV1
+// 先删除缓存(库存)，再创建订单(写数据库)
+func CreateOrderWithCacheV1(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+		return
+	}
+	res := service.DeleteStockCountCache(sid)
+	if res {
+		id := service.CreateOrderWithPessimisticLock(sid)
+		if id == -1 {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "sid": sid})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
+		}
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to delete"})
+	}
+}
+
+// CreateOrderWithCacheV2
+// 先创建订单，再删除缓存(库存)
+func CreateOrderWithCacheV2(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+		return
+	}
+
+	oid := service.CreateOrderWithPessimisticLock(sid)
+	if oid == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "sid": sid})
+	} else {
+		res := service.DeleteStockCountCache(sid)
+		if !res {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to delete"})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"message": "ok", "id": oid})
+		}
+	}
+}
+
 func CreatePessimisticOrder(c *gin.Context) {
 	sid, err := strconv.Atoi(c.Param("sid"))
 	if err != nil {
@@ -20,7 +63,7 @@ func CreatePessimisticOrder(c *gin.Context) {
 	}
 	id := service.CreateOrderWithPessimisticLock(sid)
 	if id == -1 {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "id": id})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "id": sid})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
 	}

@@ -47,3 +47,13 @@ func GetStockCountByCache(id int) int {
 	}
 	return val
 }
+
+func DeleteStockCountCache(id int) bool {
+	cacheKey := STOCK_COUNT + "_" + strconv.Itoa(id)
+	err := util.DelRedisKey(cacheKey)
+	if err != nil {
+		log.Println(err.Error())
+		return false
+	}
+	return true
+}

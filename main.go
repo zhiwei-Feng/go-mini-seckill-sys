@@ -34,6 +34,8 @@ func main() {
 	r.GET("/getVerityHash/:sid/:userId", controller.GetVerifyHash)
 	r.GET("/getStockByDB/:sid", controller.GetStockByDB)
 	r.GET("/getStockByCache/:sid", controller.GetStockByCache)
+	r.GET("/createOrderWithCacheV1/:sid", controller.CreateOrderWithCacheV1)
+	r.GET("/createOrderWithCacheV2/:sid", controller.CreateOrderWithCacheV2)
 
 	_ = r.Run(":8888")
 }
