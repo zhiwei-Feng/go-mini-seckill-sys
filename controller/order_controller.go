@@ -55,6 +55,36 @@ func CreateOrderWithCacheV2(c *gin.Context) {
 	}
 }
 
+func CreateOrderWithCacheV3(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+		return
+	}
+	res := service.DeleteStockCountCache(sid)
+	if res {
+		id := service.CreateOrderWithPessimisticLock(sid)
+		if id == -1 {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "sid": sid})
+		} else {
+			// 延时再删除
+			go func() {
+				log.Println("等待1s后再删除")
+				time.Sleep(time.Second)
+				res := service.DeleteStockCountCache(sid)
+				if !res {
+					log.Println("再删除失败")
+				} else {
+					log.Println("再删除成功")
+				}
+			}()
+			c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
+		}
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to delete"})
+	}
+}
+
 func CreatePessimisticOrder(c *gin.Context) {
 	sid, err := strconv.Atoi(c.Param("sid"))
 	if err != nil {

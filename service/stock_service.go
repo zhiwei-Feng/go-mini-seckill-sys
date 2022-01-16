@@ -23,7 +23,7 @@ func GetStockCountByDB(id int) int {
 		return -1
 	}
 
-	return stock.Count
+	return stock.Count - stock.Sale
 }
 
 func GetStockCountByCache(id int) int {
@@ -37,12 +37,12 @@ func GetStockCountByCache(id int) int {
 			log.Println(err.Error())
 			return -1
 		}
-		err = util.SetRedisStringVal(key, strconv.Itoa(stock.Count))
+		err = util.SetRedisStringVal(key, strconv.Itoa(stock.Count-stock.Sale))
 		if err != nil {
 			log.Println(err.Error())
 			return -1
 		}
-		return stock.Count
+		return stock.Count - stock.Sale
 		//return -1
 	}
 	return val
