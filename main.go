@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 	"mini-seckill/controller"
 	"mini-seckill/db"
+	"mini-seckill/message"
 	"time"
 )
 
@@ -25,6 +26,9 @@ func main() {
 	sqlDb.SetConnMaxIdleTime(time.Minute * 30)
 	db.DbConn = dbcon
 
+	// start rabbitmq consumer
+	go message.ConsumerForCacheDeleteMessage()
+
 	// launch gin and config related handler
 	r := gin.Default()
 	r.GET("/createPessimisticOrder/:sid", controller.CreatePessimisticOrder)
@@ -37,6 +41,7 @@ func main() {
 	r.GET("/createOrderWithCacheV1/:sid", controller.CreateOrderWithCacheV1)
 	r.GET("/createOrderWithCacheV2/:sid", controller.CreateOrderWithCacheV2)
 	r.GET("/createOrderWithCacheV3/:sid", controller.CreateOrderWithCacheV3)
+	r.GET("/createOrderWithCacheV4/:sid", controller.CreateOrderWithCacheV4)
 
 	_ = r.Run(":8888")
 }

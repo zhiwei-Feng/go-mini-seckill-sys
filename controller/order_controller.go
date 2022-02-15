@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gin-gonic/gin"
 	"log"
+	"mini-seckill/message"
 	"mini-seckill/service"
 	"mini-seckill/util"
 	"net/http"
@@ -55,6 +56,8 @@ func CreateOrderWithCacheV2(c *gin.Context) {
 	}
 }
 
+// CreateOrderWithCacheV3
+// 加入延时双删
 func CreateOrderWithCacheV3(c *gin.Context) {
 	sid, err := strconv.Atoi(c.Param("sid"))
 	if err != nil {
@@ -83,6 +86,44 @@ func CreateOrderWithCacheV3(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to delete"})
 	}
+}
+
+// CreateOrderWithCacheV4
+// 加入删除缓存重试机制
+func CreateOrderWithCacheV4(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
+		return
+	}
+	service.DeleteStockCountCache(sid)
+	id := service.CreateOrderWithPessimisticLock(sid)
+	if id == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "fail to create", "sid": sid})
+	} else {
+		// 延时再删除
+		go func() {
+			log.Println("等待1s后再删除")
+			time.Sleep(time.Second)
+			//res := service.DeleteStockCountCache(sid)
+			//if !res {
+			//	log.Println("再删除失败，放入消息队列重试")
+			//	err := util.PublishCacheDeleteMessage(strconv.Itoa(sid))
+			//	if err != nil {
+			//		log.Println("发布消息失败")
+			//	}
+			//} else {
+			//	log.Println("再删除成功")
+			//}
+			log.Println("再删除失败，放入消息队列重试")
+			err := message.PublishCacheDeleteMessage(strconv.Itoa(sid))
+			if err != nil {
+				log.Println("发布消息失败")
+			}
+		}()
+		c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
+	}
+
 }
 
 func CreatePessimisticOrder(c *gin.Context) {
