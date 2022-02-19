@@ -15,3 +15,8 @@ type StockOrder struct {
 func (receiver StockOrder) TableName() string {
 	return "stock_order"
 }
+
+type UserOrderInfo struct {
+	Sid    int
+	UserId int
+}

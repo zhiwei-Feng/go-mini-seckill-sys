@@ -13,6 +13,50 @@ import (
 	"time"
 )
 
+func CreateOrderWithMq(sid int, userId int) int {
+	var remaining int
+	err := db.DbConn.Transaction(func(tx *gorm.DB) error {
+		stock, err := dao.SelectStockByPk(tx, sid)
+		if err != nil {
+			return err
+		}
+		if stock.Sale == stock.Count {
+			log.Println("StockOuts")
+			return errors.New("StockOuts")
+		}
+
+		_, err = dao.UpdateStockByPkWithOptimistic(tx, stock)
+		if err != nil {
+			log.Println("乐观锁并发控制")
+			return err
+		}
+		remaining = stock.Count - stock.Sale
+
+		order := domain.StockOrder{}
+		order.Sid = int(stock.ID)
+		order.Name = stock.Name
+		order.CreateTime = time.Now()
+		order.UserId = userId
+		_, err = dao.InsertOrderSelective(tx, order)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return -1
+	}
+
+	DeleteStockCountCache(sid)
+	key := USER_HAS_ORDER + "_" + strconv.Itoa(sid)
+	err = util.SetAdd(key, strconv.Itoa(userId))
+	if err != nil {
+		return -1
+	}
+	return remaining
+}
+
 // CreateOrderWithPessimisticLock
 // @param sid stock ID
 // @return order ID
@@ -155,4 +199,14 @@ func CreateOrderWithVerifiedUrl(sid, userId int, hashcode string) (int, error) {
 	}
 
 	return remain, nil
+}
+
+func CheckOrderInCache(sid, userId int) (bool, error) {
+	key := USER_HAS_ORDER + "_" + strconv.Itoa(sid)
+	log.Printf("检查用户Id：[%v] 是否抢购过商品Id：[%v] 检查Key：[%s]", userId, sid, key)
+	res, err := util.IsMember(key, strconv.Itoa(userId))
+	if err != nil {
+		return false, err
+	}
+	return res, nil
 }

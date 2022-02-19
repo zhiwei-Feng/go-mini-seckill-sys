@@ -28,6 +28,7 @@ func main() {
 
 	// start rabbitmq consumer
 	go message.ConsumerForCacheDeleteMessage()
+	go message.ConsumerForOrderCreate()
 
 	// launch gin and config related handler
 	r := gin.Default()
@@ -42,6 +43,7 @@ func main() {
 	r.GET("/createOrderWithCacheV2/:sid", controller.CreateOrderWithCacheV2)
 	r.GET("/createOrderWithCacheV3/:sid", controller.CreateOrderWithCacheV3)
 	r.GET("/createOrderWithCacheV4/:sid", controller.CreateOrderWithCacheV4)
+	r.GET("/createOrderWithMq/:sid/:userId", controller.CreateOrderWithMq)
 
 	_ = r.Run(":8888")
 }

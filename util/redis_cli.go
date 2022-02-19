@@ -35,3 +35,23 @@ func DelRedisKey(key string) error {
 	}
 	return nil
 }
+
+func IsMember(key string, member string) (bool, error) {
+	res, err := rdb.SIsMember(context.Background(), key, member).Result()
+	if err != nil {
+		return false, err
+	}
+	return res, nil
+}
+
+func SetAdd(key string, val string) error {
+	err := rdb.SAdd(context.Background(), key, val).Err()
+	if err != nil {
+		return err
+	}
+	err = rdb.Expire(context.Background(), key, time.Hour).Err()
+	if err != nil {
+		return err
+	}
+	return nil
+}

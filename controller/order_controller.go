@@ -2,8 +2,10 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"log"
+	"mini-seckill/domain"
 	"mini-seckill/message"
 	"mini-seckill/service"
 	"mini-seckill/util"
@@ -12,6 +14,50 @@ import (
 	"strings"
 	"time"
 )
+
+// CreateOrderWithMq 下单接口：异步订单创建
+//
+func CreateOrderWithMq(c *gin.Context) {
+	sid, err := strconv.Atoi(c.Param("sid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid sid"})
+		return
+	}
+	userId, err := strconv.Atoi(c.Param("userId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid userId"})
+		return
+	}
+
+	hasOrder, err := service.CheckOrderInCache(sid, userId)
+	if err != nil || hasOrder {
+		log.Println("该用户已经抢购过")
+		c.JSON(http.StatusOK, gin.H{"message": "请不要重复抢购"})
+		return
+	}
+
+	count := service.GetStockCountByCache(sid)
+	if count == -1 {
+		c.JSON(http.StatusInternalServerError, gin.H{})
+		return
+	}
+	if count == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "无库存"})
+		return
+	}
+	// 写入消息队列
+	res, err := json.Marshal(domain.UserOrderInfo{sid, userId})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+	err = message.PublishMessage(res, "orderCreate")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "请求提交成功"})
+}
 
 // CreateOrderWithCacheV1
 // 先删除缓存(库存)，再创建订单(写数据库)
