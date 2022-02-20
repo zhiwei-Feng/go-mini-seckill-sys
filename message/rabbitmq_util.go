@@ -109,6 +109,7 @@ func ConsumerForCacheDeleteMessage() {
 	failOnError(err, "Failed to register a consumer")
 
 	forever := make(chan bool)
+	defer close(forever)
 
 	go func() {
 		for d := range msgs {
@@ -154,6 +155,7 @@ func ConsumerForOrderCreate() {
 	failOnError(err, "Failed to register a consumer")
 
 	forever := make(chan bool)
+	defer close(forever)
 
 	go func() {
 		for d := range msgs {

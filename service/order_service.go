@@ -2,9 +2,10 @@ package service
 
 import (
 	"errors"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"log"
+	"mini-seckill/config"
 	"mini-seckill/dao"
 	"mini-seckill/db"
 	"mini-seckill/domain"
@@ -12,6 +13,41 @@ import (
 	"strconv"
 	"time"
 )
+
+func CreateOrder(stockId int) (int, error) {
+	var remaining int
+	err := db.DbConn.Transaction(func(tx *gorm.DB) error {
+		stock, err := dao.SelectStockByPk(tx, stockId)
+		if err != nil {
+			return err
+		}
+		if stock.Sale == stock.Count {
+			return errors.New("StockOuts")
+		}
+
+		_, err = dao.UpdateStockByPkWithOptimistic(tx, stock)
+		if err != nil {
+			return err
+		}
+		remaining = stock.Count - stock.Sale
+
+		order := domain.StockOrder{}
+		order.Sid = int(stock.ID)
+		order.Name = stock.Name
+		order.CreateTime = time.Now()
+		_, err = dao.InsertOrderSelective(tx, order)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("下单失败")
+		return -1, err
+	}
+	return remaining, nil
+}
 
 func CreateOrderWithMq(sid int, userId int) int {
 	var remaining int
@@ -21,13 +57,11 @@ func CreateOrderWithMq(sid int, userId int) int {
 			return err
 		}
 		if stock.Sale == stock.Count {
-			log.Println("StockOuts")
 			return errors.New("StockOuts")
 		}
 
 		_, err = dao.UpdateStockByPkWithOptimistic(tx, stock)
 		if err != nil {
-			log.Println("乐观锁并发控制")
 			return err
 		}
 		remaining = stock.Count - stock.Sale
@@ -69,13 +103,11 @@ func CreateOrderWithPessimisticLock(sid int) int {
 			return err
 		}
 		if stock.Sale == stock.Count {
-			log.Println("StockOuts")
 			return errors.New("StockOuts")
 		}
 
 		_, err = dao.UpdateStockByPk(tx, stock)
 		if err != nil {
-			log.Println("悲观锁条件下更新失败.")
 			return err
 		}
 
@@ -107,13 +139,11 @@ func CreateOrderWithOptimisticLock(sid int) int {
 			return err
 		}
 		if stock.Sale == stock.Count {
-			log.Println("StockOuts")
 			return errors.New("StockOuts")
 		}
 
 		_, err = dao.UpdateStockByPkWithOptimistic(tx, stock)
 		if err != nil {
-			log.Println("乐观锁并发控制")
 			return err
 		}
 		remaining = stock.Count - stock.Sale
@@ -142,26 +172,22 @@ func CreateOrderWithVerifiedUrl(sid, userId int, hashcode string) (int, error) {
 	hashKey := HASH_KEY + "_" + strconv.Itoa(sid) + "_" + strconv.Itoa(userId)
 	verifiedHash, err := util.GetRedisStringVal(hashKey)
 	if err != nil {
-		log.Println("hash获取失败, ", err.Error())
 		return -1, err
 	}
 
 	if verifiedHash != hashcode {
-		log.Println("hash验证失败")
 		return -1, errors.New("错误的hashcode")
 	}
 
 	// 验证用户
 	_, err = dao.SelectUserByPk(db.DbConn, uint64(userId))
 	if err != nil {
-		log.Println("用户不存在")
 		return -1, err
 	}
 
 	// 验证商品
 	stock, err := dao.SelectStockByPk(db.DbConn, sid)
 	if err != nil {
-		log.Println("商品不存在")
 		return -1, err
 	}
 
@@ -169,13 +195,11 @@ func CreateOrderWithVerifiedUrl(sid, userId int, hashcode string) (int, error) {
 	var remain int
 	err = db.DbConn.Transaction(func(tx *gorm.DB) error {
 		if stock.Sale == stock.Count {
-			log.Println("StockOuts")
 			return errors.New("StockOuts")
 		}
 
 		_, err = dao.UpdateStockByPkWithOptimistic(tx, stock)
 		if err != nil {
-			log.Println("乐观锁并发控制")
 			return err
 		}
 		log.Printf("最大量:%v，卖出量:%v\n", stock.Count, stock.Sale+1)
@@ -201,11 +225,13 @@ func CreateOrderWithVerifiedUrl(sid, userId int, hashcode string) (int, error) {
 	return remain, nil
 }
 
-func CheckOrderInCache(sid, userId int) (bool, error) {
-	key := USER_HAS_ORDER + "_" + strconv.Itoa(sid)
-	log.Printf("检查用户Id：[%v] 是否抢购过商品Id：[%v] 检查Key：[%s]", userId, sid, key)
+// CheckOrderRepeat 检查用户对于商品sid是否重复抢购
+func CheckOrderRepeat(sid, userId int) (bool, error) {
+	key := config.GenerateHasOrderKey(sid)
+	log.Info().Int("userId", userId).Int("stockId", sid).Msg("检查重复抢购")
 	res, err := util.IsMember(key, strconv.Itoa(userId))
 	if err != nil {
+		log.Warn().Msg("some error in redis")
 		return false, err
 	}
 	return res, nil

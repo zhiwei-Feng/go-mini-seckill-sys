@@ -1,12 +1,12 @@
 package main
 
 import (
+	"github.com/fvbock/endless"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"mini-seckill/controller"
 	"mini-seckill/db"
-	"mini-seckill/message"
 	"time"
 )
 
@@ -27,8 +27,8 @@ func main() {
 	db.DbConn = dbcon
 
 	// start rabbitmq consumer
-	go message.ConsumerForCacheDeleteMessage()
-	go message.ConsumerForOrderCreate()
+	//go message.ConsumerForCacheDeleteMessage()
+	//go message.ConsumerForOrderCreate()
 
 	// launch gin and config related handler
 	r := gin.Default()
@@ -45,5 +45,8 @@ func main() {
 	r.GET("/createOrderWithCacheV4/:sid", controller.CreateOrderWithCacheV4)
 	r.GET("/createOrderWithMq/:sid/:userId", controller.CreateOrderWithMq)
 
-	_ = r.Run(":8888")
+	v1 := r.Group("/v1")
+	v1.GET("/goodsseckill", controller.GoodsSeckillV1)
+
+	_ = endless.ListenAndServe(":8888", r)
 }

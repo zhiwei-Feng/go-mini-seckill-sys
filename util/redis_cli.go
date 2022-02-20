@@ -6,14 +6,14 @@ import (
 	"time"
 )
 
-var rdb = redis.NewClient(&redis.Options{
+var RedisCli = redis.NewClient(&redis.Options{
 	Addr:     "localhost:6379",
 	Password: "",
 	DB:       0,
 })
 
 func GetRedisStringVal(key string) (string, error) {
-	val, err := rdb.Get(context.Background(), key).Result()
+	val, err := RedisCli.Get(context.Background(), key).Result()
 	if err != nil {
 		return "", err
 	}
@@ -21,7 +21,7 @@ func GetRedisStringVal(key string) (string, error) {
 }
 
 func SetRedisStringVal(key string, val string) error {
-	err := rdb.Set(context.Background(), key, val, time.Hour).Err()
+	err := RedisCli.Set(context.Background(), key, val, time.Hour).Err()
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func SetRedisStringVal(key string, val string) error {
 }
 
 func DelRedisKey(key string) error {
-	err := rdb.Del(context.Background(), key).Err()
+	err := RedisCli.Del(context.Background(), key).Err()
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func DelRedisKey(key string) error {
 }
 
 func IsMember(key string, member string) (bool, error) {
-	res, err := rdb.SIsMember(context.Background(), key, member).Result()
+	res, err := RedisCli.SIsMember(context.Background(), key, member).Result()
 	if err != nil {
 		return false, err
 	}
@@ -45,11 +45,11 @@ func IsMember(key string, member string) (bool, error) {
 }
 
 func SetAdd(key string, val string) error {
-	err := rdb.SAdd(context.Background(), key, val).Err()
+	err := RedisCli.SAdd(context.Background(), key, val).Err()
 	if err != nil {
 		return err
 	}
-	err = rdb.Expire(context.Background(), key, time.Hour).Err()
+	err = RedisCli.Expire(context.Background(), key, time.Hour).Err()
 	if err != nil {
 		return err
 	}

@@ -4,19 +4,87 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/gin-gonic/gin"
-	"log"
+	"github.com/rs/zerolog/log"
+	"mini-seckill/config"
 	"mini-seckill/domain"
 	"mini-seckill/message"
 	"mini-seckill/service"
 	"mini-seckill/util"
+	"mini-seckill/view"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
+// GoodsSeckillV1 GoodsSeckill 商品抢购接口
+// 功能流程：
+// 1. 获取抢购商品的ID和当前抢购用户ID
+// 2. 单机限流
+// 3. 验证url hash
+// 4. 单用户访问频率限制
+// 5. 重复抢购检查
+// 6. 下单（检查库存）
+// todo: 异步下单，读写分离（库存检查和下单分离）
+func GoodsSeckillV1(c *gin.Context) {
+	// 1.
+	var param view.SeckillReq
+	err := c.Bind(&param)
+	if c.ShouldBind(&param) != nil || param.VerifyHash == "" {
+		log.Warn().Err(err).Send()
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request params"})
+		return
+	} else {
+		log.Info().Msgf("stockId|%d| userId|%d| |%s|",
+			param.StockId, param.UserId, param.VerifyHash)
+	}
+
+	// 2.
+	// rate limit
+	if util.RateLimiter.Wait(c) != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "访问人数过多，请稍后重试"})
+		return
+	}
+
+	// 3.
+	hashKey := config.GenerateURLVerifyKey(param.StockId, param.UserId)
+	verifiedHash, err := util.RedisCli.Get(c, hashKey).Result()
+	if err != nil {
+		log.Warn().Err(err).Msg("some errors in redis")
+		c.JSON(http.StatusInternalServerError, gin.H{})
+		return
+	}
+	if verifiedHash != param.VerifyHash {
+		log.Warn().Msg("invalid request")
+		c.JSON(http.StatusForbidden, gin.H{})
+		return
+	}
+
+	// 4.
+	pass, err := service.UserAccessLimitCheck(param.UserId)
+	if !pass {
+		log.Info().Int("userId", param.UserId).Msg("请求次数异常过多！")
+		c.JSON(http.StatusOK, gin.H{"message": "尝试过多，请30分钟后再试"})
+		return
+	}
+
+	// 5.
+	hasOrder, err := service.CheckOrderRepeat(param.StockId, param.UserId)
+	if err != nil || hasOrder {
+		c.JSON(http.StatusOK, gin.H{"message": "请不要重复抢购"})
+		return
+	}
+
+	// 6.
+	remaining, err := service.CreateOrder(param.StockId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "系统异常请重试"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "抢购成功", "余下库存": remaining})
+}
+
 // CreateOrderWithMq 下单接口：异步订单创建
-//
 func CreateOrderWithMq(c *gin.Context) {
 	sid, err := strconv.Atoi(c.Param("sid"))
 	if err != nil {
@@ -29,9 +97,8 @@ func CreateOrderWithMq(c *gin.Context) {
 		return
 	}
 
-	hasOrder, err := service.CheckOrderInCache(sid, userId)
+	hasOrder, err := service.CheckOrderRepeat(sid, userId)
 	if err != nil || hasOrder {
-		log.Println("该用户已经抢购过")
 		c.JSON(http.StatusOK, gin.H{"message": "请不要重复抢购"})
 		return
 	}
@@ -118,14 +185,9 @@ func CreateOrderWithCacheV3(c *gin.Context) {
 		} else {
 			// 延时再删除
 			go func() {
-				log.Println("等待1s后再删除")
 				time.Sleep(time.Second)
-				res := service.DeleteStockCountCache(sid)
-				if !res {
-					log.Println("再删除失败")
-				} else {
-					log.Println("再删除成功")
-				}
+				_ = service.DeleteStockCountCache(sid)
+
 			}()
 			c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
 		}
@@ -149,7 +211,6 @@ func CreateOrderWithCacheV4(c *gin.Context) {
 	} else {
 		// 延时再删除
 		go func() {
-			log.Println("等待1s后再删除")
 			time.Sleep(time.Second)
 			//res := service.DeleteStockCountCache(sid)
 			//if !res {
@@ -161,11 +222,8 @@ func CreateOrderWithCacheV4(c *gin.Context) {
 			//} else {
 			//	log.Println("再删除成功")
 			//}
-			log.Println("再删除失败，放入消息队列重试")
-			err := message.PublishCacheDeleteMessage(strconv.Itoa(sid))
-			if err != nil {
-				log.Println("发布消息失败")
-			}
+			_ = message.PublishCacheDeleteMessage(strconv.Itoa(sid))
+
 		}()
 		c.JSON(http.StatusOK, gin.H{"message": "ok", "id": id})
 	}
@@ -198,7 +256,6 @@ func CreateOptimisticOrder(c *gin.Context) {
 	defer cancel()
 
 	if util.RateLimiter.Wait(ctx) != nil {
-		log.Println("rate limited.")
 		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "rate limiting"})
 		return
 	}
@@ -218,7 +275,6 @@ func CreateOrderWithVerifiedUrl(c *gin.Context) {
 	userId, err2 := strconv.Atoi(c.Param("userId"))
 	verifyHash := c.Param("verifyHash")
 	if err1 != nil || err2 != nil || verifyHash == "" {
-		log.Println("请求参数错误")
 		c.JSON(http.StatusBadRequest, gin.H{"message": "请求参数错误"})
 		return
 	}
@@ -239,7 +295,6 @@ func CreateOrderWithVerifiedUrlAndLimit(c *gin.Context) {
 	userId, err2 := strconv.Atoi(c.Param("userId"))
 	verifyHash := c.Param("verifyHash")
 	if err1 != nil || err2 != nil || verifyHash == "" {
-		log.Println("请求参数错误")
 		c.JSON(http.StatusBadRequest, gin.H{"message": "请求参数错误"})
 		return
 	}
@@ -282,7 +337,6 @@ func GetVerifyHash(c *gin.Context) {
 
 	hashCode, err := service.GetVerifyHashForSeckillURL(sid, userId)
 	if err != nil {
-		log.Println("获取验证hash失败，原因：", err.Error())
 		c.JSON(http.StatusOK, gin.H{"message": err.Error()})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"message": "success", "code": hashCode})
