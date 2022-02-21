@@ -61,12 +61,12 @@ func GoodsSeckillV2(c *gin.Context) {
 	}
 
 	// 4.
-	pass, err := service.UserAccessLimitCheck(param.UserId)
-	if !pass {
-		log.Info().Int("userId", param.UserId).Msg("请求次数异常过多！")
-		c.JSON(http.StatusOK, gin.H{"message": "尝试过多，请30分钟后再试"})
-		return
-	}
+	//pass, err := service.UserAccessLimitCheck(param.UserId)
+	//if !pass {
+	//	log.Info().Int("userId", param.UserId).Msg("请求次数异常过多！")
+	//	c.JSON(http.StatusOK, gin.H{"message": "尝试过多，请30分钟后再试"})
+	//	return
+	//}
 
 	// 5.
 	hasOrder, err := service.CheckOrderRepeat(param.StockId, param.UserId)
@@ -113,9 +113,6 @@ func GoodsSeckillV1(c *gin.Context) {
 		log.Warn().Err(err).Send()
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request params"})
 		return
-	} else {
-		log.Info().Msgf("stockId|%d| userId|%d| |%s|",
-			param.StockId, param.UserId, param.VerifyHash)
 	}
 
 	// 2.
@@ -140,12 +137,12 @@ func GoodsSeckillV1(c *gin.Context) {
 	}
 
 	// 4.
-	pass, err := service.UserAccessLimitCheck(param.UserId)
-	if !pass {
-		log.Info().Int("userId", param.UserId).Msg("请求次数异常过多！")
-		c.JSON(http.StatusOK, gin.H{"message": "尝试过多，请30分钟后再试"})
-		return
-	}
+	//pass, err := service.UserAccessLimitCheck(param.UserId)
+	//if !pass {
+	//	log.Info().Int("userId", param.UserId).Msg("请求次数异常过多！")
+	//	c.JSON(http.StatusOK, gin.H{"message": "尝试过多，请30分钟后再试"})
+	//	return
+	//}
 
 	// 5.
 	hasOrder, err := service.CheckOrderRepeat(param.StockId, param.UserId)
@@ -154,9 +151,16 @@ func GoodsSeckillV1(c *gin.Context) {
 		return
 	}
 
+	// 6.0 库存检查
+	remain, err := service.GetStock(param.StockId)
+	if err != nil || remain <= 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "当前库存不足，请稍后再试"})
+		return
+	}
+
 	// 6.1 获取订单创建锁（用户+商品）
 	lockKey := config.GenerateOrderCreateKey(param.StockId, param.UserId)
-	lockSuccess, err := util.RedisCli.SetNX(c, lockKey, 1, time.Second*5).Result()
+	lockSuccess, err := util.RedisCli.SetNX(c, lockKey, 1, time.Second*10).Result()
 	if err != nil || !lockSuccess {
 		c.JSON(http.StatusOK, gin.H{"message": "稍后再试"})
 		return

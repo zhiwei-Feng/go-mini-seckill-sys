@@ -6,7 +6,8 @@ import (
 	"log"
 	"mini-seckill/domain"
 	"mini-seckill/service"
-	"strconv"
+	"os"
+	"os/signal"
 )
 
 func failOnError(err error, msg string) {
@@ -91,52 +92,6 @@ func PublishCacheDeleteMessage(cacheKey string) error {
 	return nil
 }
 
-func ConsumerForCacheDeleteMessage() {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
-	failOnError(err, "Failed to connect to RabbitMQ")
-	defer conn.Close()
-
-	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
-	defer ch.Close()
-
-	q, err := ch.QueueDeclare(
-		"cacheDeleteQueue", false, false, false, false, nil)
-	failOnError(err, "Failed to declare a queue")
-
-	msgs, err := ch.Consume(
-		q.Name, "", true, false, false, false, nil)
-	failOnError(err, "Failed to register a consumer")
-
-	forever := make(chan bool)
-	defer close(forever)
-
-	go func() {
-		for d := range msgs {
-			stockId, _ := strconv.Atoi(string(d.Body))
-			res := service.DeleteStockCountCache(stockId)
-			if !res {
-				// retry
-				err = ch.Publish(
-					"",
-					q.Name,
-					false,
-					false,
-					amqp.Publishing{
-						ContentType: "text/plain",
-						Body:        []byte(strconv.Itoa(stockId)),
-					})
-				failOnError(err, "Failed to publish a message")
-			} else {
-				log.Printf("删除缓存重试成功，key: %d", stockId)
-			}
-		}
-	}()
-
-	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	<-forever
-}
-
 func ConsumerForOrderCreate() {
 	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	failOnError(err, "Failed to connect to RabbitMQ")
@@ -154,8 +109,8 @@ func ConsumerForOrderCreate() {
 		q.Name, "", true, false, false, false, nil)
 	failOnError(err, "Failed to register a consumer")
 
-	forever := make(chan bool)
-	defer close(forever)
+	stop := make(chan os.Signal)
+	signal.Notify(stop, os.Interrupt)
 
 	go func() {
 		for d := range msgs {
@@ -175,5 +130,11 @@ func ConsumerForOrderCreate() {
 	}()
 
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
-	<-forever
+	select {
+	case sig := <-stop:
+		log.Printf("got %s signal, clean all resources", sig)
+		ch.Close()
+		conn.Close()
+	}
+
 }

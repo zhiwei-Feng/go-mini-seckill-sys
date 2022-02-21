@@ -40,7 +40,7 @@ func CreateOrder(stockId int, userId int) (int, error) {
 		remaining = stock.Count - stock.Sale
 
 		order := domain.StockOrder{}
-		order.Sid = int(stock.ID)
+		order.Sid = stockId
 		order.Name = stock.Name
 		order.UserId = userId
 		order.CreateTime = time.Now()
@@ -55,6 +55,9 @@ func CreateOrder(stockId int, userId int) (int, error) {
 		log.Error().Err(err).Msg("下单失败")
 		return -1, err
 	}
+	DeleteStockCountCache(stockId)
+	key := config.GenerateHasOrderKey(stockId)
+	_ = util.SetAdd(key, strconv.Itoa(userId))
 	return remaining, nil
 }
 

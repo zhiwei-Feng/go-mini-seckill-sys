@@ -18,9 +18,9 @@ func InsertOrder(db *gorm.DB, order domain.StockOrder) (int, error) {
 
 func CountOrderByIdAndUserId(db *gorm.DB, stockId, userId int) (int, error) {
 	var count int64
-	res := db.Where(&domain.StockOrder{Sid: stockId, UserId: userId}).Count(&count)
-	if res != nil {
-		return -1, nil
+	res := db.Model(&domain.StockOrder{}).Where("sid = ? AND user_id = ?", stockId, userId).Count(&count)
+	if res.Error != nil {
+		return -1, res.Error
 	}
 	return int(count), nil
 }
