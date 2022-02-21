@@ -30,6 +30,7 @@ func main() {
 	// start rabbitmq consumer
 	//go message.ConsumerForCacheDeleteMessage()
 	go message.ConsumerForOrderCreate()
+	go message.ConsumerForStockCacheDelete()
 
 	// launch gin and config related handler
 	r := gin.Default()

@@ -1,14 +1,17 @@
 package message
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/streadway/amqp"
 	"log"
 	"mini-seckill/config"
 	"mini-seckill/domain"
 	"mini-seckill/service"
+	"mini-seckill/util"
 	"os"
 	"os/signal"
+	"time"
 )
 
 func failOnError(err error, msg string) {
@@ -71,7 +74,7 @@ func PublishCacheDeleteMessage(cacheKey string) error {
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
-		"cacheDeleteQueue", false, false, false, false, nil)
+		config.StockCacheDeleteQueueName, false, false, false, false, nil)
 	if err != nil {
 		failOnError(err, "Failed to declare a queue")
 		return err
@@ -113,22 +116,75 @@ func ConsumerForOrderCreate() {
 	stop := make(chan os.Signal)
 	signal.Notify(stop, os.Interrupt)
 
-	go func() {
-		for d := range msgs {
+	for d := range msgs {
+		go func(delivery amqp.Delivery) {
 			userOrderInfo := &domain.UserOrderInfo{}
-			err = json.Unmarshal(d.Body, userOrderInfo)
+			err = json.Unmarshal(delivery.Body, userOrderInfo)
 			if err != nil {
 				log.Println("invalid message content")
-				continue
+				return
 			}
 			// create order
 			_, err := service.CreateOrder(userOrderInfo.Sid, userOrderInfo.UserId)
 			if err != nil {
 				log.Println("fail to create order")
-				continue
+				return
 			}
-		}
-	}()
+
+			for {
+				err := PublishCacheDeleteMessage(config.GenerateStockKey(userOrderInfo.Sid))
+				if err == nil {
+					break
+				}
+			}
+		}(d)
+	}
+
+	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
+	select {
+	case sig := <-stop:
+		log.Printf("got %s signal, clean all resources", sig)
+		ch.Close()
+		conn.Close()
+	}
+
+}
+
+func ConsumerForStockCacheDelete() {
+	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	failOnError(err, "Failed to connect to RabbitMQ")
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	failOnError(err, "Failed to open a channel")
+	defer ch.Close()
+
+	q, err := ch.QueueDeclare(
+		config.StockCacheDeleteQueueName, false, false, false, false, nil)
+	failOnError(err, "Failed to declare a queue")
+
+	msgs, err := ch.Consume(
+		q.Name, "", true, false, false, false, nil)
+	failOnError(err, "Failed to register a consumer")
+
+	stop := make(chan os.Signal)
+	signal.Notify(stop, os.Interrupt)
+
+	for d := range msgs {
+		go func(delivery amqp.Delivery) {
+			key := string(delivery.Body)
+			time.Sleep(time.Second)
+			err := util.RedisCli.Del(context.Background(), key).Err()
+			if err != nil {
+				for {
+					err := PublishCacheDeleteMessage(key)
+					if err == nil {
+						break
+					}
+				}
+			}
+		}(d)
+	}
 
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
 	select {

@@ -39,4 +39,5 @@ func GenerateOrderCreateKey(stockId, userId int) string {
 }
 
 // === 消息队列名称 ===
-const OrderCreateQueueName = "orderCreate" // 异步下单队列
+const OrderCreateQueueName = "orderCreate"           // 异步下单队列
+const StockCacheDeleteQueueName = "stockCacheDelete" // 延时删除

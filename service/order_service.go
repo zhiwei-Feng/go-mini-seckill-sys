@@ -15,6 +15,7 @@ import (
 )
 
 func CreateOrder(stockId int, userId int) (int, error) {
+	DeleteStockCountCache(stockId)
 	var remaining int
 	err := db.DbConn.Transaction(func(tx *gorm.DB) error {
 		// 兜底，检查是否下过单，不允许重复下单
@@ -55,7 +56,6 @@ func CreateOrder(stockId int, userId int) (int, error) {
 		log.Error().Err(err).Msg("下单失败")
 		return -1, err
 	}
-	DeleteStockCountCache(stockId)
 	key := config.GenerateHasOrderKey(stockId)
 	_ = util.SetAdd(key, strconv.Itoa(userId))
 	return remaining, nil
@@ -240,7 +240,7 @@ func CreateOrderWithVerifiedUrl(sid, userId int, hashcode string) (int, error) {
 // CheckOrderRepeat 检查用户对于商品sid是否重复抢购
 func CheckOrderRepeat(sid, userId int) (bool, error) {
 	key := config.GenerateHasOrderKey(sid)
-	log.Info().Int("userId", userId).Int("stockId", sid).Msg("检查重复抢购")
+	//log.Info().Int("userId", userId).Int("stockId", sid).Msg("检查重复抢购")
 	res, err := util.IsMember(key, strconv.Itoa(userId))
 	if err != nil {
 		log.Warn().Msg("some error in redis")

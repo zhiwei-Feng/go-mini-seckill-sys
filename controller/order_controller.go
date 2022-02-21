@@ -104,13 +104,16 @@ func GoodsSeckillV2(c *gin.Context) {
 
 	// 因为消息成功发送，这里认为订单一定会创建
 	key := config.GenerateHasOrderKey(param.StockId)
-	_ = util.SetAdd(key, strconv.Itoa(param.UserId))
+	err = util.RedisCli.SAdd(c, key, strconv.Itoa(param.UserId)).Err()
+	if err == nil {
+		util.RedisCli.Expire(c, key, time.Hour)
+	}
 	// 释放锁
 	delSuccess, err := util.RedisCli.Del(c, lockKey).Result()
 	if err != nil || delSuccess == 0 {
 		log.Error().Err(err).Msg("释放锁失败")
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "抢购进行中，等待订单生成"})
+	c.JSON(http.StatusOK, gin.H{"message": "抢购参与成功"})
 }
 
 // GoodsSeckillV1 商品抢购接口
