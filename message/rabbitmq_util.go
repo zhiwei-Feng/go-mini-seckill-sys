@@ -116,29 +116,37 @@ func ConsumerForOrderCreate() {
 	stop := make(chan os.Signal)
 	signal.Notify(stop, os.Interrupt)
 
-	for d := range msgs {
-		go func(delivery amqp.Delivery) {
-			userOrderInfo := &domain.UserOrderInfo{}
-			err = json.Unmarshal(delivery.Body, userOrderInfo)
-			if err != nil {
-				log.Println("invalid message content")
-				return
-			}
-			// create order
-			_, err := service.CreateOrder(userOrderInfo.Sid, userOrderInfo.UserId)
-			if err != nil {
-				log.Println("fail to create order")
-				return
-			}
-
-			for {
-				err := PublishCacheDeleteMessage(config.GenerateStockKey(userOrderInfo.Sid))
-				if err == nil {
-					break
+	go func() {
+		for d := range msgs {
+			go func(delivery amqp.Delivery) {
+				userOrderInfo := &domain.UserOrderInfo{}
+				err = json.Unmarshal(delivery.Body, userOrderInfo)
+				if err != nil {
+					log.Println("invalid message content")
+					return
 				}
-			}
-		}(d)
-	}
+				// create order
+				_, err := service.CreateOrder(userOrderInfo.Sid, userOrderInfo.UserId)
+				if err != nil {
+					log.Println("fail to create order")
+					return
+				}
+
+				for {
+					err := PublishCacheDeleteMessage(config.GenerateStockKey(userOrderInfo.Sid))
+					if err == nil {
+						break
+					}
+					select {
+					case sig := <-stop:
+						log.Printf("got %s signal, clean all resources", sig)
+						ch.Close()
+						conn.Close()
+					}
+				}
+			}(d)
+		}
+	}()
 
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
 	select {
@@ -170,21 +178,29 @@ func ConsumerForStockCacheDelete() {
 	stop := make(chan os.Signal)
 	signal.Notify(stop, os.Interrupt)
 
-	for d := range msgs {
-		go func(delivery amqp.Delivery) {
-			key := string(delivery.Body)
-			time.Sleep(time.Second)
-			err := util.RedisCli.Del(context.Background(), key).Err()
-			if err != nil {
-				for {
-					err := PublishCacheDeleteMessage(key)
-					if err == nil {
-						break
+	go func() {
+		for d := range msgs {
+			go func(delivery amqp.Delivery) {
+				key := string(delivery.Body)
+				time.Sleep(time.Second)
+				err := util.RedisCli.Del(context.Background(), key).Err()
+				if err != nil {
+					for {
+						err := PublishCacheDeleteMessage(key)
+						if err == nil {
+							break
+						}
+						select {
+						case sig := <-stop:
+							log.Printf("got %s signal, clean all resources", sig)
+							ch.Close()
+							conn.Close()
+						}
 					}
 				}
-			}
-		}(d)
-	}
+			}(d)
+		}
+	}()
 
 	log.Printf(" [*] Waiting for messages. To exit press CTRL+C")
 	select {
