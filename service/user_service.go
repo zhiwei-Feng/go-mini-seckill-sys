@@ -63,5 +63,5 @@ func UserAccessLimitCheck(userId int) (bool, error) {
 		log.Warn().Err(err)
 		return false, err
 	}
-	return val > config.ACCESS_MAXCOUNT, nil
+	return val < config.ACCESS_MAXCOUNT, nil
 }

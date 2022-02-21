@@ -6,7 +6,7 @@ import (
 	"mini-seckill/domain"
 )
 
-func InsertOrderSelective(db *gorm.DB, order domain.StockOrder) (int, error) {
+func InsertOrder(db *gorm.DB, order domain.StockOrder) (int, error) {
 	result := db.Create(&order)
 	if result.Error != nil {
 		log.Printf("Err: insert order failed. message:%v", result.Error.Error())
@@ -14,4 +14,13 @@ func InsertOrderSelective(db *gorm.DB, order domain.StockOrder) (int, error) {
 	}
 
 	return int(order.ID), nil
+}
+
+func CountOrderByIdAndUserId(db *gorm.DB, stockId, userId int) (int, error) {
+	var count int64
+	res := db.Where(&domain.StockOrder{Sid: stockId, UserId: userId}).Count(&count)
+	if res != nil {
+		return -1, nil
+	}
+	return int(count), nil
 }

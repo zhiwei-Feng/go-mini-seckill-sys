@@ -17,16 +17,16 @@ import (
 	"time"
 )
 
-// GoodsSeckillV1 GoodsSeckill 商品抢购接口
+// GoodsSeckillV2 商品抢购接口
 // 功能流程：
 // 1. 获取抢购商品的ID和当前抢购用户ID
 // 2. 单机限流
 // 3. 验证url hash
 // 4. 单用户访问频率限制
 // 5. 重复抢购检查
-// 6. 下单（检查库存）
-// todo: 异步下单，读写分离（库存检查和下单分离）
-func GoodsSeckillV1(c *gin.Context) {
+// 6. 检查库存
+// 7. 异步下单（减库存）
+func GoodsSeckillV2(c *gin.Context) {
 	// 1.
 	var param view.SeckillReq
 	err := c.Bind(&param)
@@ -76,10 +76,103 @@ func GoodsSeckillV1(c *gin.Context) {
 	}
 
 	// 6.
-	remaining, err := service.CreateOrder(param.StockId)
+	remain, err := service.GetStock(param.StockId)
+	if err != nil || remain <= 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "当前库存不足，请稍后再试"})
+		return
+	}
+
+	// 7.
+	res, err := json.Marshal(domain.UserOrderInfo{Sid: param.StockId, UserId: param.UserId})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+	err = message.PublishMessage(res, config.OrderCreateQueueName)
+	if err != nil {
+		log.Error().Err(err).Msg("写入消息队列失败")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "抢购进行中，等待订单生成"})
+}
+
+// GoodsSeckillV1 商品抢购接口
+// 功能流程：
+// 1. 获取抢购商品的ID和当前抢购用户ID
+// 2. 单机限流
+// 3. 验证url hash
+// 4. 单用户访问频率限制
+// 5. 重复抢购检查（高并发情况下可能会重复下单）
+// 6. 下单（检查库存）+ 分布式锁防止重复下单（兜底）
+func GoodsSeckillV1(c *gin.Context) {
+	// 1.
+	var param view.SeckillReq
+	err := c.Bind(&param)
+	if c.ShouldBind(&param) != nil || param.VerifyHash == "" {
+		log.Warn().Err(err).Send()
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request params"})
+		return
+	} else {
+		log.Info().Msgf("stockId|%d| userId|%d| |%s|",
+			param.StockId, param.UserId, param.VerifyHash)
+	}
+
+	// 2.
+	// rate limit
+	if util.RateLimiter.Wait(c) != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "访问人数过多，请稍后重试"})
+		return
+	}
+
+	// 3.
+	hashKey := config.GenerateURLVerifyKey(param.StockId, param.UserId)
+	verifiedHash, err := util.RedisCli.Get(c, hashKey).Result()
+	if err != nil {
+		log.Warn().Err(err).Msg("some errors in redis")
+		c.JSON(http.StatusInternalServerError, gin.H{})
+		return
+	}
+	if verifiedHash != param.VerifyHash {
+		log.Warn().Msg("invalid request")
+		c.JSON(http.StatusForbidden, gin.H{})
+		return
+	}
+
+	// 4.
+	pass, err := service.UserAccessLimitCheck(param.UserId)
+	if !pass {
+		log.Info().Int("userId", param.UserId).Msg("请求次数异常过多！")
+		c.JSON(http.StatusOK, gin.H{"message": "尝试过多，请30分钟后再试"})
+		return
+	}
+
+	// 5.
+	hasOrder, err := service.CheckOrderRepeat(param.StockId, param.UserId)
+	if err != nil || hasOrder {
+		c.JSON(http.StatusOK, gin.H{"message": "请不要重复抢购"})
+		return
+	}
+
+	// 6.1 获取订单创建锁（用户+商品）
+	lockKey := config.GenerateOrderCreateKey(param.StockId, param.UserId)
+	lockSuccess, err := util.RedisCli.SetNX(c, lockKey, 1, time.Second*5).Result()
+	if err != nil || !lockSuccess {
+		c.JSON(http.StatusOK, gin.H{"message": "稍后再试"})
+		return
+	}
+
+	// 6.2 创建订单
+	remaining, err := service.CreateOrder(param.StockId, param.UserId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "系统异常请重试"})
 		return
+	}
+
+	// 6.3 释放锁
+	delSuccess, err := util.RedisCli.Del(c, lockKey).Result()
+	if err != nil || delSuccess == 0 {
+		log.Error().Err(err).Msg("释放锁失败")
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "抢购成功", "余下库存": remaining})
 }

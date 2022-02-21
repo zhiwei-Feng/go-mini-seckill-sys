@@ -14,9 +14,17 @@ import (
 	"time"
 )
 
-func CreateOrder(stockId int) (int, error) {
+func CreateOrder(stockId int, userId int) (int, error) {
 	var remaining int
 	err := db.DbConn.Transaction(func(tx *gorm.DB) error {
+		// 兜底，检查是否下过单，不允许重复下单
+		num, err := dao.CountOrderByIdAndUserId(tx, stockId, userId)
+		if err != nil {
+			return err
+		} else if num > 0 {
+			return errors.New("订单已存在")
+		}
+
 		stock, err := dao.SelectStockByPk(tx, stockId)
 		if err != nil {
 			return err
@@ -34,8 +42,9 @@ func CreateOrder(stockId int) (int, error) {
 		order := domain.StockOrder{}
 		order.Sid = int(stock.ID)
 		order.Name = stock.Name
+		order.UserId = userId
 		order.CreateTime = time.Now()
-		_, err = dao.InsertOrderSelective(tx, order)
+		_, err = dao.InsertOrder(tx, order)
 		if err != nil {
 			return err
 		}
@@ -71,7 +80,7 @@ func CreateOrderWithMq(sid int, userId int) int {
 		order.Name = stock.Name
 		order.CreateTime = time.Now()
 		order.UserId = userId
-		_, err = dao.InsertOrderSelective(tx, order)
+		_, err = dao.InsertOrder(tx, order)
 		if err != nil {
 			return err
 		}
@@ -116,7 +125,7 @@ func CreateOrderWithPessimisticLock(sid int) int {
 		order.Sid = int(stock.ID)
 		order.Name = stock.Name
 		order.CreateTime = time.Now()
-		id, err = dao.InsertOrderSelective(tx, order)
+		id, err = dao.InsertOrder(tx, order)
 		if err != nil {
 			return err
 		}
@@ -152,7 +161,7 @@ func CreateOrderWithOptimisticLock(sid int) int {
 		order.Sid = int(stock.ID)
 		order.Name = stock.Name
 		order.CreateTime = time.Now()
-		_, err = dao.InsertOrderSelective(tx, order)
+		_, err = dao.InsertOrder(tx, order)
 		if err != nil {
 			return err
 		}
@@ -211,7 +220,7 @@ func CreateOrderWithVerifiedUrl(sid, userId int, hashcode string) (int, error) {
 		order.Name = stock.Name
 		order.CreateTime = time.Now()
 		order.UserId = userId
-		_, err = dao.InsertOrderSelective(tx, order)
+		_, err = dao.InsertOrder(tx, order)
 		if err != nil {
 			return err
 		}
