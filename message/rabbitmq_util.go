@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/streadway/amqp"
 	"log"
+	"mini-seckill/config"
 	"mini-seckill/domain"
 	"mini-seckill/service"
 	"os"
@@ -102,7 +103,7 @@ func ConsumerForOrderCreate() {
 	defer ch.Close()
 
 	q, err := ch.QueueDeclare(
-		"orderCreate", false, false, false, false, nil)
+		config.OrderCreateQueueName, false, false, false, false, nil)
 	failOnError(err, "Failed to declare a queue")
 
 	msgs, err := ch.Consume(
@@ -121,8 +122,8 @@ func ConsumerForOrderCreate() {
 				continue
 			}
 			// create order
-			res := service.CreateOrderWithMq(userOrderInfo.Sid, userOrderInfo.UserId)
-			if res == -1 {
+			_, err := service.CreateOrder(userOrderInfo.Sid, userOrderInfo.UserId)
+			if err != nil {
 				log.Println("fail to create order")
 				continue
 			}

@@ -25,7 +25,7 @@ import (
 // 4. 单用户访问频率限制
 // 5. 重复抢购检查
 // 6. 检查库存
-// 7. 异步下单（减库存）
+// 7. 异步下单（减库存），消息成功发送后应该设置重复抢购标识符
 func GoodsSeckillV2(c *gin.Context) {
 	// 1.
 	var param view.SeckillReq
@@ -34,9 +34,6 @@ func GoodsSeckillV2(c *gin.Context) {
 		log.Warn().Err(err).Send()
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request params"})
 		return
-	} else {
-		log.Info().Msgf("stockId|%d| userId|%d| |%s|",
-			param.StockId, param.UserId, param.VerifyHash)
 	}
 
 	// 2.
@@ -76,9 +73,19 @@ func GoodsSeckillV2(c *gin.Context) {
 	}
 
 	// 6.
+
+	// 6.0 库存检查
 	remain, err := service.GetStock(param.StockId)
 	if err != nil || remain <= 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "当前库存不足，请稍后再试"})
+		return
+	}
+
+	// 6.1 获取订单创建锁（用户+商品）
+	lockKey := config.GenerateOrderCreateKey(param.StockId, param.UserId)
+	lockSuccess, err := util.RedisCli.SetNX(c, lockKey, 1, time.Second*10).Result()
+	if err != nil || !lockSuccess {
+		c.JSON(http.StatusOK, gin.H{"message": "稍后再试"})
 		return
 	}
 
@@ -93,6 +100,15 @@ func GoodsSeckillV2(c *gin.Context) {
 		log.Error().Err(err).Msg("写入消息队列失败")
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
+	}
+
+	// 因为消息成功发送，这里认为订单一定会创建
+	key := config.GenerateHasOrderKey(param.StockId)
+	_ = util.SetAdd(key, strconv.Itoa(param.UserId))
+	// 释放锁
+	delSuccess, err := util.RedisCli.Del(c, lockKey).Result()
+	if err != nil || delSuccess == 0 {
+		log.Error().Err(err).Msg("释放锁失败")
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "抢购进行中，等待订单生成"})
 }

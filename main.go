@@ -46,8 +46,9 @@ func main() {
 	r.GET("/createOrderWithCacheV4/:sid", controller.CreateOrderWithCacheV4)
 	r.GET("/createOrderWithMq/:sid/:userId", controller.CreateOrderWithMq)
 
-	v1 := r.Group("/v1")
-	v1.GET("/goodsseckill", controller.GoodsSeckillV1)
+	goodsseckill := r.Group("/goodsseckill")
+	goodsseckill.GET("/v1", controller.GoodsSeckillV1)
+	goodsseckill.GET("/v2", controller.GoodsSeckillV2)
 
 	_ = endless.ListenAndServe(":8888", r)
 }
