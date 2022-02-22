@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "mini-seckill/rpc";
+
+service User {
+  rpc CheckToken (CheckTokenReq) returns (CheckTokenReply) {}
+  rpc Authentication(AuthReq) returns (AuthReply){}
+}
+
+message CheckTokenReq {
+  string token = 1;
+}
+message CheckTokenReply {
+  bool pass = 1;
+  int32 userId = 2;
+}
+
+message AuthReq {
+  string sub = 1;
+  string obj = 2;
+  string act = 3;
+}
+message AuthReply {
+  bool pass = 1;
+}

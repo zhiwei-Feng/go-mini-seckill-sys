@@ -8,6 +8,7 @@ import (
 	"mini-seckill/controller"
 	"mini-seckill/db"
 	"mini-seckill/message"
+	"mini-seckill/middleware"
 	"time"
 )
 
@@ -47,7 +48,7 @@ func main() {
 	r.GET("/createOrderWithCacheV4/:sid", controller.CreateOrderWithCacheV4)
 	r.GET("/createOrderWithMq/:sid/:userId", controller.CreateOrderWithMq)
 
-	goodsseckill := r.Group("/goodsseckill")
+	goodsseckill := r.Group("/goodsseckill", middleware.AuthorizeJWT(), middleware.Authentication("goodsseckill", "get"))
 	goodsseckill.GET("/v1", controller.GoodsSeckillV1)
 	goodsseckill.GET("/v2", controller.GoodsSeckillV2)
 
