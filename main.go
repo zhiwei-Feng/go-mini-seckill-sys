@@ -14,7 +14,7 @@ import (
 
 func main() {
 	// open database connection
-	dsn := "root:root@tcp(127.0.0.1:3306)/seckill?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:root@tcp(host.docker.internal:3306)/seckill?charset=utf8mb4&parseTime=True&loc=Local"
 	dbcon, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic(err.Error())

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const addr = "localhost:50051"
+const addr = "seckill-user:50051"
 
 func CheckToken(token string) (*CheckTokenReply, error) {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))

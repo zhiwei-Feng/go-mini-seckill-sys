@@ -20,8 +20,12 @@ func failOnError(err error, msg string) {
 	}
 }
 
+func connect() (*amqp.Connection, error) {
+	return amqp.Dial("amqp://guest:guest@host.docker.internal:5672/")
+}
+
 func PublishMessage(message []byte, queueName string) error {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := connect()
 	if err != nil {
 		failOnError(err, "Failed to connect to RabbitMQ")
 		return err
@@ -59,7 +63,7 @@ func PublishMessage(message []byte, queueName string) error {
 }
 
 func PublishCacheDeleteMessage(cacheKey string) error {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := connect()
 	if err != nil {
 		failOnError(err, "Failed to connect to RabbitMQ")
 		return err
@@ -97,7 +101,7 @@ func PublishCacheDeleteMessage(cacheKey string) error {
 }
 
 func ConsumerForOrderCreate() {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := connect()
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
@@ -159,7 +163,7 @@ func ConsumerForOrderCreate() {
 }
 
 func ConsumerForStockCacheDelete() {
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	conn, err := connect()
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
